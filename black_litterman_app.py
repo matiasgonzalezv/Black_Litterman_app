@@ -251,7 +251,6 @@ st.title("Black-Litterman and Portfolio Optimization")
 st.sidebar.header("Data Input")
 uploaded = st.sidebar.file_uploader("Upload Excel with price index series", type=["xlsx"])
 
-# (Asegúrate de tener tus constantes MODEL_ASSETS, DEFAULT_PRIORS, etc., definidas antes)
 st.subheader("Priors, Views, and Confidences")
 
 param_df = pd.DataFrame({
@@ -261,13 +260,13 @@ param_df = pd.DataFrame({
     "confidence": [DEFAULT_CONFIDENCES.get(a, 0) for a in MODEL_ASSETS],
 })
 
-# --- PASO 1: Preparar una copia para el editor, con valores en porcentaje (ej: 5.0) ---
+# --- STEP 1: Prepare a copy for the editor, values in percentage (ej: 5.0) ---
 param_df_display = param_df.copy()
 cols_to_format = ["prior", "view", "confidence"]
 for col in cols_to_format:
     param_df_display[col] = param_df_display[col] * 100
 
-# --- PASO 2: Usar el DataFrame de visualización en el data_editor y ajustar el formato ---
+# --- STEP 2: Use the DataFrame for visualization in the data editor and adjust the format ---
 edited_params_display = st.data_editor(
     param_df_display,
     num_rows="fixed",
@@ -279,12 +278,12 @@ edited_params_display = st.data_editor(
     }
 )
 
-# --- PASO 3: Convertir los datos editados de vuelta a su escala decimal para los cálculos ---
+# --- STEP 3: Change the edited data back to the original decimal scale ---
 edited_params = edited_params_display.copy()
 for col in cols_to_format:
     edited_params[col] = edited_params[col] / 100
 
-# --- PASO 4: Preparar los diccionarios con los valores correctos (en decimal) ---
+# --- STEP 4: Prepare the dictionaries with correct values (decimals) ---
 priors = dict(zip(edited_params["asset"], edited_params["prior"]))
 views = dict(zip(edited_params["asset"], edited_params["view"]))
 confidences = dict(zip(edited_params["asset"], edited_params["confidence"]))
@@ -295,32 +294,29 @@ import altair as alt
 # Main run
 if run_btn:
     try:
-        # --- PASO 1: CARGA DE DATOS ---
+        # --- STEP 1: Load the data ---
         if uploaded is not None:
             data, returns, returns_modelos, portafolio_modelo = load_data_from_excel(uploaded)
         else:
             st.error("Please upload an Excel file or provide a valid absolute path.")
             st.stop()
 
-        returns_modelos = returns_modelos[MODEL_ASSETS] # Asegura el orden
+        returns_modelos = returns_modelos[MODEL_ASSETS] # maintain the order
         st.success("Data loaded successfully.")
 
-        # --- PASO 2: EJECUTAR TODOS LOS MODELOS ---
+        # --- STEP 2: Run all the models ---
         # Se ejecutan todos los cálculos primero para tener los resultados listos.
         bl_w, bl_mu, bl_S, bl_ret, bl_vol = run_black_litterman(returns_modelos, priors, views, confidences)
         mvo_w, _, _, mvo_ret, mvo_vol = run_mvo(returns_modelos, priors, views, confidences)
 
-        # --- PASO 3: VISUALIZACIÓN DE RESULTADOS ---
+        # --- STEP 3: Visualization of results ---
 
-        # 3.1: Mostrar los Retornos Posteriores (el resultado principal de Black-Litterman)
+        # 3.1: Show the posterior returnrs 
         st.divider()
         st.header("1. Retornos Esperados Posteriores (Anualizados)")
         st.write("Estos son los retornos ajustados por el modelo Black-Litterman, que se usarán como base para todas las estrategias de optimización.")
 
-        # 1. Crea dos columnas de igual tamaño
         col1, col2 = st.columns(2)
-
-        # 2. Usa la primera columna (col1) para mostrar el dataframe
         with col1:
             st.dataframe(
                 pd.Series(bl_mu)
@@ -329,11 +325,11 @@ if run_btn:
                 .style.format("{:.2f}%")
             )
 
-        # 3.2: Comparar las Ponderaciones y Retornos de cada estrategia
+        # 3.2: Compare the Weights and Returns of each strategy
         st.divider()
         st.header("2. Comparación de Estrategias")
 
-        # Función auxiliar para crear gráficos y no repetir código
+        # Auxiliar function to create charts
         def create_weights_chart(weights_series):
             weights_df = weights_series.rename("Ponderación").reset_index()
             weights_df.columns = ["Activo", "Ponderación"]
@@ -347,7 +343,7 @@ if run_btn:
             )
             return chart
 
-        # Crear 3 columnas para mostrar los resultados lado a lado
+        # Create 3 columns to show results side by side
         col1, col2, col3 = st.columns(3)
 
         with col1:
@@ -374,7 +370,7 @@ if run_btn:
             st.altair_chart(chart_mvo, use_container_width=True)
 
 
-        # Tabla comparativa de ponderaciones
+        # Comparative table of weights
         df_comparacion = pd.DataFrame({
             'Black-Litterman': bl_w,
             'Portafolio Modelo': portafolio_modelo,
@@ -387,12 +383,11 @@ if run_btn:
             'Diferencia': (bl_w[0:6]/bl_w[0:6].sum()) - (portafolio_modelo[0:6]/portafolio_modelo[0:6].sum())
         }).reset_index().rename(columns={'index': 'Activo'})
         
-        # 1. Calculamos las sumas para las columnas relevantes usando .loc para mayor claridad
+        # 1. Calculate sums for relevant columns
         suma_bl = df_comparacion['Black-Litterman'].iloc[0:6].sum()
         suma_modelo = df_comparacion['Portafolio Modelo'].iloc[0:6].sum()
 
-        # 2. Creamos la nueva fila como un DataFrame de 1xN
-        #    Añadimos también la columna 'Activo' y 'Diferencia' para que coincida con el esquema
+        # 2. Create new row like a 1xN DataFrame
         total_equities_df = pd.DataFrame(
             {
                 'Activo': ['Total Equity'],
@@ -402,14 +397,13 @@ if run_btn:
             }
         )
 
-        # 3. Concatenamos la nueva fila a la cabeza del DataFrame original
-        #    Pasamos la nueva fila y el DataFrame original dentro de una LISTA []
+        # 3. Concatenate
         df_comparacion_equities = pd.concat(
             [total_equities_df, df_comparacion_equities],  # <- Lista de DataFrames
             ignore_index=True
         )
 
-        #COMPARACIÓN BONOS
+        #BONDS
         BOND_ASSETS = MODEL_ASSETS[6:12]  
 
         df_comparacion_bonos = pd.DataFrame({
@@ -418,12 +412,9 @@ if run_btn:
             'Diferencia': (bl_w[6:12]/bl_w[6:12].sum()) - (portafolio_modelo[6:12]/portafolio_modelo[6:12].sum())
         }).reindex(BOND_ASSETS).reset_index().rename(columns={'index': 'Activo'})
 
-        # 1. Calculamos las sumas para las columnas relevantes usando .loc para mayor claridad
         suma_bl = df_comparacion['Black-Litterman'].iloc[6:12].sum()
         suma_modelo = df_comparacion['Portafolio Modelo'].iloc[6:12].sum()
 
-        # 2. Creamos la nueva fila como un DataFrame de 1xN
-        #    Añadimos también la columna 'Activo' y 'Diferencia' para que coincida con el esquema
         total_bonos_df = pd.DataFrame(
             {
                 'Activo': ['Total Bonos'],
@@ -433,24 +424,22 @@ if run_btn:
             }
         )
 
-        # 3. Concatenamos la nueva fila a la cabeza del DataFrame original
         df_comparacion_bonos = pd.concat(
             [total_bonos_df, df_comparacion_bonos], 
             ignore_index=True
         )
 
+        #ALTERNATIVES
         df_comparacion_alternativos = pd.DataFrame({
             'Black-Litterman': bl_w[12:16]/bl_w[12:16].sum(),
             'Portafolio Modelo': portafolio_modelo[12:16]/portafolio_modelo[12:16].sum(),
             'Diferencia': (bl_w[12:16]/bl_w[12:16].sum()) - (portafolio_modelo[12:16]/portafolio_modelo[12:16].sum())
         }).reset_index().rename(columns={'index': 'Activo'})
 
-        # 1. Calculamos las sumas para las columnas relevantes usando .loc para mayor claridad
+        
         suma_bl = df_comparacion['Black-Litterman'].iloc[12:16].sum()
         suma_modelo = df_comparacion['Portafolio Modelo'].iloc[12:16].sum()
 
-        # 2. Creamos la nueva fila como un DataFrame de 1xN
-        #    Añadimos también la columna 'Activo' y 'Diferencia' para que coincida con el esquema
         total_alternativos_df = pd.DataFrame(
             {
                 'Activo': ['Total Alternativos'],
@@ -460,7 +449,6 @@ if run_btn:
             }
         )
 
-        # 3. Concatenamos la nueva fila a la cabeza del DataFrame original
         df_comparacion_alternativos = pd.concat(
             [total_alternativos_df, df_comparacion_alternativos], 
             ignore_index=True
@@ -509,22 +497,19 @@ if run_btn:
                 }),
             )     
 
-        # --- NUEVA SECCIÓN: Gráfico de Riesgo vs Retorno por Activo ---
+        # --- Chart of risk vs return ---
         st.divider()
         st.subheader("3. Análisis de Riesgo-Retorno por Activo (Posterior)")
         st.write("Visualización de los retornos esperados y la volatilidad para cada activo después del ajuste de Black-Litterman.")
 
-        # 1. Preparar los datos 
         df_risk_return = pd.DataFrame({
             'Retorno': bl_mu,
             'Volatilidad': bl_S
         }).reset_index().rename(columns={'index': 'Activo'})
                            
-        # 2. Crear y mostrar el gráfico en una columna
         col1, col2 = st.columns([2, 1]) # Damos más espacio al gráfico
 
         with col1:
-            # --- LLAMADA A LA NUEVA Y CORRECTA FUNCIÓN ---
             fig1 = create_asset_risk_return_plot(
                 df_risk_return, 
                 'Volatilidad',
@@ -544,7 +529,7 @@ if run_btn:
                 height=500 # Ajusta la altura de la tabla
             )
 
-        # 3.3: Resumen de las restricciones aplicadas
+        # 3.3: Summary of applied constraints
         st.divider()
         st.subheader("Restricciones Aplicadas a los modelos")
         st.markdown(
